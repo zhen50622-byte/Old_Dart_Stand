@@ -1,0 +1,41 @@
+# --- Build / generated ---
+build/
+Build/
+bin/
+obj/
+*.o
+*.d
+*.elf
+*.map
+*.hex
+*.bin
+*.lst
+*.su
+*.a
+*.la
+*.lo
+
+# --- CMake ---
+CMakeCache.txt
+cmake_install.cmake
+CMakeFiles/
+compile_commands.json
+build.ninja
+.ninja_deps
+.ninja_log
+CMakeUserPresets.json
+.cmake/
+
+# --- IDE ---
+.idea/
+.vscode/
+*.iml
+
+# --- STM32CubeMX generated metadata (kept .ioc as source of truth) ---
+# .mxproject
+
+# --- OS / editor ---
+Thumbs.db
+Desktop.ini
+.DS_Store
+*.bak
