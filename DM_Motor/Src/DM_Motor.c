@@ -68,8 +68,8 @@ void DM_Motor_Setspeed(CAN_HandleTypeDef *hcan,uint8_t motor_id,uint16_t model_i
 void DM_Motor_Setposition(CAN_HandleTypeDef *hcan,uint8_t motor_id,uint16_t model_id,float position,float v)
 {
     uint16_t ID=model_id+motor_id;
-    uint8_t*p=(uint8_t*)&v;//浮点数是小端存储&v是低位的地址
-    uint8_t*p0=(uint8_t*)&position;
+    uint8_t* p=(uint8_t*)&v;//浮点数是小端存储&v是低位的地址
+    uint8_t* p0=(uint8_t*)&position;
     uint8_t Send_Data[8]={0x00};
     //写入位置
     Send_Data[0]=*p0;

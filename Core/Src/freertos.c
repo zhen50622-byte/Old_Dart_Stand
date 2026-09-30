@@ -61,6 +61,20 @@ const osThreadAttr_t DM_Motor_Task_attributes = {
   .stack_size = 128 * 4,
   .priority = (osPriority_t) osPriorityNormal,
 };
+/* Definitions for BJ_Task */
+osThreadId_t BJ_TaskHandle;
+const osThreadAttr_t BJ_Task_attributes = {
+  .name = "BJ_Task",
+  .stack_size = 128 * 4,
+  .priority = (osPriority_t) osPriorityNormal,
+};
+/* Definitions for Motor_return_t0 */
+osThreadId_t Motor_return_t0Handle;
+const osThreadAttr_t Motor_return_t0_attributes = {
+  .name = "Motor_return_t0",
+  .stack_size = 128 * 4,
+  .priority = (osPriority_t) osPriorityNormal1,
+};
 
 /* Private function prototypes -----------------------------------------------*/
 /* USER CODE BEGIN FunctionPrototypes */
@@ -69,6 +83,8 @@ const osThreadAttr_t DM_Motor_Task_attributes = {
 
 void StartDefaultTask(void *argument);
 void DM_Motor_TaskStart(void *argument);
+void Start_BJ_Task(void *argument);
+void Start_Motor_return_t0(void *argument);
 
 void MX_FREERTOS_Init(void); /* (MISRA C 2004 rule 8.1) */
 
@@ -104,6 +120,12 @@ void MX_FREERTOS_Init(void) {
 
   /* creation of DM_Motor_Task */
   DM_Motor_TaskHandle = osThreadNew(DM_Motor_TaskStart, NULL, &DM_Motor_Task_attributes);
+
+  /* creation of BJ_Task */
+  BJ_TaskHandle = osThreadNew(Start_BJ_Task, NULL, &BJ_Task_attributes);
+
+  /* creation of Motor_return_t0 */
+  Motor_return_t0Handle = osThreadNew(Start_Motor_return_t0, NULL, &Motor_return_t0_attributes);
 
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
@@ -149,6 +171,42 @@ __weak void DM_Motor_TaskStart(void *argument)
     osDelay(1);
   }
   /* USER CODE END DM_Motor_TaskStart */
+}
+
+/* USER CODE BEGIN Header_Start_BJ_Task */
+/**
+* @brief Function implementing the BJ_Task thread.
+* @param argument: Not used
+* @retval None
+*/
+/* USER CODE END Header_Start_BJ_Task */
+__weak void Start_BJ_Task(void *argument)
+{
+  /* USER CODE BEGIN Start_BJ_Task */
+  /* Infinite loop */
+  for(;;)
+  {
+    osDelay(1);
+  }
+  /* USER CODE END Start_BJ_Task */
+}
+
+/* USER CODE BEGIN Header_Start_Motor_return_t0 */
+/**
+* @brief Function implementing the Motor_return_t0 thread.
+* @param argument: Not used
+* @retval None
+*/
+/* USER CODE END Header_Start_Motor_return_t0 */
+__weak void Start_Motor_return_t0(void *argument)
+{
+  /* USER CODE BEGIN Start_Motor_return_t0 */
+  /* Infinite loop */
+  for(;;)
+  {
+    osDelay(1);
+  }
+  /* USER CODE END Start_Motor_return_t0 */
 }
 
 /* Private application code --------------------------------------------------*/

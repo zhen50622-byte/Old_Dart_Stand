@@ -20,12 +20,17 @@
 #include "main.h"
 #include "cmsis_os.h"
 #include "can.h"
+#include "dma.h"
+#include "tim.h"
+#include "usart.h"
 #include "gpio.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include"DM_Motor.h"
 #include"drv_can.h"
+#include"RC_remoto_control.h"
+#include"X_V2.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -46,6 +51,15 @@
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
+//遥控器的全局变量(以后优化)
+int flag=2;//达妙电机标志位,默认上电不动
+RC_Ctl_t RC_CtrlData;
+//uint8_t RxData[2][18]={0};//接收遥控器数据的数组，双
+uint8_t RxData[18]={0};//接收遥控器数据的数,单缓冲区
+int flag_one_step =0;//此为全局变量
+uint32_t t0=0;
+uint8_t s2_last = 0;
+uint8_t s1_last = 0;
 
 /* USER CODE END PV */
 
@@ -58,7 +72,78 @@ void MX_FREERTOS_Init(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+void RemoteDataProcess(uint8_t *pData)//解析数据
+{
+  if(pData == NULL)
+  {
+    return;
+  }
 
+  RC_CtrlData.rc.ch0 = ((int16_t)pData[0] | ((int16_t)pData[1] << 8)) & 0x07FF;
+  RC_CtrlData.rc.ch1 = (((int16_t)pData[1] >> 3) | ((int16_t)pData[2] << 5))
+& 0x07FF;
+  RC_CtrlData.rc.ch2 = (((int16_t)pData[2] >> 6) | ((int16_t)pData[3] << 2) |
+                       ((int16_t)pData[4] << 10)) & 0x07FF;
+  RC_CtrlData.rc.ch3 = (((int16_t)pData[4] >> 1) | ((int16_t)pData[5]<<7)) &
+0x07FF;
+
+  RC_CtrlData.rc.s1 = ((pData[5] >> 4) & 0x000C) >> 2;
+  RC_CtrlData.rc.s2 = ((pData[5] >> 4) & 0x0003);
+
+  RC_CtrlData.mouse.x = ((int16_t)pData[6]) | ((int16_t)pData[7] << 8);
+  RC_CtrlData.mouse.y = ((int16_t)pData[8]) | ((int16_t)pData[9] << 8);
+  RC_CtrlData.mouse.z = ((int16_t)pData[10]) | ((int16_t)pData[11] << 8);
+
+  RC_CtrlData.mouse.press_l = pData[12];
+  RC_CtrlData.mouse.press_r = pData[13];
+
+  RC_CtrlData.key.v = ((int16_t)pData[14]);// | ((int16_t)pData[15] << 8); ;//上拨最小，下拨最大
+  RC_CtrlData.rc.dial = pData[16] | (pData[17] << 8);//上拨最小，下拨最大
+  //your control code ….
+  if (RC_CtrlData.rc.ch3>1024)//向上拨摇杆，
+  {
+    flag=1;
+  }
+  else if (RC_CtrlData.rc.ch3<1024)//向下拨摇杆
+  {
+    flag=0;
+  }
+  else
+  {
+    //do nothing
+  }
+}
+//重写串口空闲中断
+void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size)
+{
+  if(huart==&huart1)
+  {
+    uint8_t*pData=RxData;
+    if (Size==18)//判断是否接收的是完整的数据据
+    {
+      RemoteDataProcess(pData);
+    }
+    HAL_UARTEx_ReceiveToIdle_DMA(&huart1, RxData, 18);//持续接收数据
+    __HAL_DMA_DISABLE_IT(&hdma_usart1_rx,DMA_IT_HT);
+  }
+  //优化为双缓冲区
+   // if (huart == &huart1)
+   // {
+   //   static uint8_t idx = 0;// 记录"刚刚收完"的是哪块缓冲
+   //   uint8_t *done = RxData[idx];     // 刚收满的一帧
+   //
+   //   idx ^= 1;                        // 切到另一块(0<->1)
+   //
+   //   HAL_UARTEx_ReceiveToIdle_DMA(&huart1, RxData[idx], 18); // 先武装,让 DMA 去填另一块
+   //   __HAL_DMA_DISABLE_IT(&hdma_usart1_rx,DMA_IT_HT);
+   //
+   //   // 现在解析上一帧,此时 DMA 正在写另一块 → 真正并行,不会互相覆盖
+   //   if (Size==18)
+   //   {
+   //     RemoteDataProcess(done);
+   //   }
+   // }
+}
 /* USER CODE END 0 */
 
 /**
@@ -90,11 +175,23 @@ int main(void)
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
+  MX_DMA_Init();
   MX_CAN1_Init();
   MX_CAN2_Init();
+  MX_TIM4_Init();
+  MX_USART1_UART_Init();
   /* USER CODE BEGIN 2 */
-  CAN_Init(&hcan1,User_CANCallback);
-  CAN_Filter_Mask_Config(&hcan1,CAN_FILTER(0)|CAN_FIFO_1|CAN_STDID|CAN_DATA_TYPE,0x01,0x00);//配置滤波器
+  HAL_TIM_PWM_Start(&htim4, TIM_CHANNEL_1);//扳机舵机开启
+  __HAL_TIM_SetCompare(&htim4, TIM_CHANNEL_1,780.0f);//初始未上膛
+  HAL_UARTEx_ReceiveToIdle_DMA(&huart1, RxData, 18);//开启串口
+  __HAL_DMA_DISABLE_IT(&hdma_usart1_rx,DMA_IT_HT);
+  CAN_Init(&hcan2,User_CANCallback);//初始化CN2 使用达妙电机
+  CAN_Filter_Mask_Config(&hcan2,CAN_FILTER(16)|CAN_FIFO_1|CAN_STDID|CAN_DATA_TYPE,0x01,0x00);//配置滤波器
+  USER_CAN1_Filter_Init();																	// 初始化CAN滤波器
+  if(HAL_CAN_Start(&hcan1) != HAL_OK) { Error_Handler(); }	// 启动CAN控制器
+  if(HAL_CAN_ActivateNotification(&hcan1, CAN_IT_RX_FIFO0_MSG_PENDING) != HAL_OK) { Error_Handler(); }	// 使能CAN控制器接收中断
+  HAL_Delay(500);//上电500ms等初始化完成
+  //X_V2_Reset_CurPos_To_Zero(8);//上电 设置步进电机的当前位置为0点
   /* USER CODE END 2 */
 
   /* Init scheduler */

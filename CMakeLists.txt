@@ -34,7 +34,14 @@ enable_language(C ASM)
 # Create an executable object type
 add_executable(${CMAKE_PROJECT_NAME}
         FR_tasks/Inc/DM_Motor_task.h
-        FR_tasks/Src/DM_Motor_task.c)
+        FR_tasks/Src/DM_Motor_task.c
+        Others/Inc/RC_remoto_control.h
+        FR_tasks/Src/BJ_Motor_task.c
+        FR_tasks/Inc/BJ_Motor_task.h
+        My_Other/Inc/darts.h
+        My_Other/Src/darts.c
+        FR_tasks/Inc/Motor_return_zero.h
+        FR_tasks/Src/Motor_return_zero.c)
 
 # Add STM32CubeMX generated sources
 add_subdirectory(cmake/stm32cubemx)
@@ -50,6 +57,11 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
         CAN/Src/drv_can.c
         DM_Motor/Src/DM_Motor.c
         FR_tasks/Src/DM_Motor_task.c
+        FR_tasks/Src/BJ_Motor_task.c
+        FR_tasks/Src/Motor_return_zero.c
+        BJ_Motor/Src/Can_BJ.c
+        BJ_Motor/Src/X_V2.c
+        My_Other/Src/darts.c
 )
 
 # Add include paths
@@ -58,6 +70,9 @@ target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
         CAN/Inc
         DM_Motor/Inc
         FR_tasks/Inc
+        Others/Inc
+        BJ_Motor/Inc
+        My_Other/Inc
 )
 
 # Add project symbols (macros)

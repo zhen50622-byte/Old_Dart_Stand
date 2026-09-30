@@ -12,7 +12,7 @@
 /* Includes ------------------------------------------------------------------*/
 
 #include "drv_can.h"
-
+#include "darts.h"
 /* Private macros ------------------------------------------------------------*/
 
 /* Private types -------------------------------------------------------------*/
@@ -91,11 +91,11 @@ void CAN_Filter_Mask_Config(CAN_HandleTypeDef *hcan, uint8_t Object_Para, uint32
 
     // ID配置, 标准帧的ID是11bit, 按规定放在高16bit中的[15:5]位
     // 掩码后ID的高16bit
-    can_filter_init_structure.FilterIdHigh = (ID & 0x7FF) << 5;//过滤器ID
+    can_filter_init_structure.FilterIdHigh = 0x0000;//过滤器ID 全通
     // 掩码后ID的低16bit
     can_filter_init_structure.FilterIdLow = 0x0000;
     // 掩码后屏蔽位的高16bit
-    can_filter_init_structure.FilterMaskIdHigh = (Mask_ID & 0x7FF) << 5;//掩码ID
+    can_filter_init_structure.FilterMaskIdHigh = 0x0000;//掩码ID 全通
     // 掩码后屏蔽位的低16bit
     can_filter_init_structure.FilterMaskIdLow = 0x0000;
 
@@ -178,7 +178,7 @@ void TIM_CAN_PeriodElapsedCallback()
  *
  * @param hcan CAN编号
  */
-void HAL_CAN_RxFifo0MsgPendingCallback(CAN_HandleTypeDef *hcan)
+void HAL_CAN_RxFifo0MsgPendingCallback(CAN_HandleTypeDef *hcan)//
 {
     //接收缓冲区
     static Struct_CAN_Rx_Buffer can_rx_buffer;
@@ -187,35 +187,96 @@ void HAL_CAN_RxFifo0MsgPendingCallback(CAN_HandleTypeDef *hcan)
     if (hcan->Instance == CAN1)
     {
         HAL_CAN_GetRxMessage(hcan, CAN_FILTER_FIFO0, &can_rx_buffer.Header, can_rx_buffer.Data);
-        CAN1_Manage_Object.Callback_Function(&can_rx_buffer);
+        if (CAN1_Manage_Object.Callback_Function != NULL)
+        {
+            CAN1_Manage_Object.Callback_Function(&can_rx_buffer);
+        }
     }
     else if (hcan->Instance == CAN2)
     {
         HAL_CAN_GetRxMessage(hcan, CAN_FILTER_FIFO0, &can_rx_buffer.Header, can_rx_buffer.Data);
-        CAN2_Manage_Object.Callback_Function(&can_rx_buffer);
+        if (CAN2_Manage_Object.Callback_Function != NULL)
+        {
+            CAN2_Manage_Object.Callback_Function(&can_rx_buffer);
+        }
     }
-}
+}//步进电机会用到FIFO0中断 将该库函数关于FIO0的中断重写
 
-/**
- * @brief HAL库CAN接收FIFO1中断
- *
- * @param hcan CAN编号
- */
 void HAL_CAN_RxFifo1MsgPendingCallback(CAN_HandleTypeDef *hcan)
 {
-    //接收缓冲区
-    static Struct_CAN_Rx_Buffer can_rx_buffer;
+    CAN_RxHeaderTypeDef header;//定义
+    uint8_t Receive_data[8];
+    if (hcan->Instance != CAN2)
+        return;//确保是CAN2
 
-    //选择回调函数
-    if (hcan->Instance == CAN1)
+    if (HAL_CAN_GetRxMessage(hcan, CAN_RX_FIFO1, &header, Receive_data) != HAL_OK)
+        return;//确保成功解析
+
+    if (header.IDE != CAN_ID_STD)   return;//确保标准帧
+    if (header.RTR != CAN_RTR_DATA) return;//确保数据帧
+    if (header.DLC != 8)            return;//确保数据长度为8字节
+    //开始解析 STM32发来的数据
+        switch (header.StdId)//判断是那个镖的参数
     {
-        HAL_CAN_GetRxMessage(hcan, CAN_FILTER_FIFO1, &can_rx_buffer.Header, can_rx_buffer.Data);
-        CAN1_Manage_Object.Callback_Function(&can_rx_buffer);
-    }
-    else if (hcan->Instance == CAN2)
-    {
-        HAL_CAN_GetRxMessage(hcan, CAN_FILTER_FIFO1, &can_rx_buffer.Header, can_rx_buffer.Data);
-        CAN2_Manage_Object.Callback_Function(&can_rx_buffer);
+        case 0x11:
+            D1_Data_Force.bytes[0] = Receive_data[0];
+            D1_Data_Force.bytes[1] = Receive_data[1];
+            D1_Data_Force.bytes[2] = Receive_data[2];
+            D1_Data_Force.bytes[3] = Receive_data[3];
+
+            D1_Data_Yaw.bytes[0] = Receive_data[4];
+            D1_Data_Yaw.bytes[1] = Receive_data[5];
+            D1_Data_Yaw.bytes[2] = Receive_data[6];
+            D1_Data_Yaw.bytes[3] = Receive_data[7];
+
+            Dart_ID_state = 0x11;
+
+            break;
+        case 0x12:
+            D2_Data_Force.bytes[0] = Receive_data[0];
+            D2_Data_Force.bytes[1] = Receive_data[1];
+            D2_Data_Force.bytes[2] = Receive_data[2];
+            D2_Data_Force.bytes[3] = Receive_data[3];
+
+            D2_Data_Yaw.bytes[0] = Receive_data[4];
+            D2_Data_Yaw.bytes[1] = Receive_data[5];
+            D2_Data_Yaw.bytes[2] = Receive_data[6];
+            D2_Data_Yaw.bytes[3] = Receive_data[7];
+
+            Dart_ID_state = 0x12;
+
+            break;
+        case 0x13:
+            D3_Data_Force.bytes[0] = Receive_data[0];
+            D3_Data_Force.bytes[1] = Receive_data[1];
+            D3_Data_Force.bytes[2] = Receive_data[2];
+            D3_Data_Force.bytes[3] = Receive_data[3];
+
+            D3_Data_Yaw.bytes[0] = Receive_data[4];
+            D3_Data_Yaw.bytes[1] = Receive_data[5];
+            D3_Data_Yaw.bytes[2] = Receive_data[6];
+            D3_Data_Yaw.bytes[3] = Receive_data[7];
+
+            Dart_ID_state = 0x13;
+
+            break;
+        case 0x14:
+            D4_Data_Force.bytes[0] = Receive_data[0];
+            D4_Data_Force.bytes[1] = Receive_data[1];
+            D4_Data_Force.bytes[2] = Receive_data[2];
+            D4_Data_Force.bytes[3] = Receive_data[3];
+
+            D4_Data_Yaw.bytes[0] = Receive_data[4];
+            D4_Data_Yaw.bytes[1] = Receive_data[5];
+            D4_Data_Yaw.bytes[2] = Receive_data[6];
+            D4_Data_Yaw.bytes[3] = Receive_data[7];
+
+            Dart_ID_state = 0x14;
+
+            break;
+        default:
+            //do nothing
+            break;
     }
 }
 void User_CANCallback(Struct_CAN_Rx_Buffer *ReceiveBuffer)//can中断接收回调函数
